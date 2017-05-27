@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
-  "license": "GPL-3.0",
+  "license": "MIT",
   "dependencies": {
     "@types/filesize": "^3.2.15",
     "@types/node": "^7.0.22",
