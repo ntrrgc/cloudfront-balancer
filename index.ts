@@ -11,8 +11,10 @@ import {SkipBytes} from "./SkipBytes";
 let publicIp = "192.168.0.230";
 let interceptedDomain = "v.vrv.co";
 let interceptionTTL = 60;
+// Used to resolve the intercepted domain and any incoming DNS questions
+dns.setServers(["208.67.222.222", "208.67.220.220"]);
 
-dnsd.createServer((req, res) => {
+const dnsServer = dnsd.createServer((req, res) => {
     const question = req.question[0];
     if (question.type === "A") {
         if (question.name !== interceptedDomain) {
@@ -53,20 +55,20 @@ dnsd.createServer((req, res) => {
         console.log(`DNS: ${question.name} ${question.type} NotImp`);
         res.end()
     }
-}).listen(53, publicIp);
+});
 
 class ServerRanking {
-    private servers = [
-        // "37.187.16.8",
-        "54.240.184.148",
-        "54.240.184.58",
-        "54.240.184.43",
-        "54.240.184.234",
-        "54.240.184.186",
-        "54.240.184.202",
-        "54.240.184.129",
-        "54.240.184.223",
-    ];
+    private servers: string[];
+
+    initializeServers() {
+        return new Promise<void>((resolve, reject) => {
+            dns.resolve4(interceptedDomain, ((err, addresses) => {
+                if (err) return reject(err);
+                this.servers = addresses;
+                resolve();
+            }))
+        })
+    }
 
     chooseServer(): string {
         return this.servers[0];
@@ -80,8 +82,6 @@ class ServerRanking {
         this.servers.push(server);
     }
 }
-
-const serverRanking = new ServerRanking();
 
 function runProxiedSession(reqOpts: any, skipBytes: number, timeout: number, res: ServerResponse,
                            onFinished: (success: boolean, totalBytesSent: number, timeSpent: number) => void)
@@ -191,9 +191,29 @@ function proxyRequest(req: IncomingMessage, res: ServerResponse) {
     tryNextServer();
 }
 
-http.createServer(proxyRequest).listen(80, publicIp);
-
-https.createServer({
-    key: fs.readFileSync("ca/archive/v.vrv.co/server.key"),
-    cert: fs.readFileSync("ca/archive/v.vrv.co/server.crt"),
-}, proxyRequest).listen(443, publicIp);
+const serverRanking = new ServerRanking();
+serverRanking.initializeServers()
+    .then(() => new Promise<void>((resolve, reject) => {
+        http.createServer(proxyRequest).listen(80, publicIp, (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    }))
+    .then(() => new Promise<void>((resolve, reject) => {
+        https.createServer({
+            key: fs.readFileSync("ca/archive/v.vrv.co/server.key"),
+            cert: fs.readFileSync("ca/archive/v.vrv.co/server.crt"),
+        }, proxyRequest).listen(443, publicIp, (err) => {
+            if (err) reject();
+            else resolve();
+        });
+    }))
+    .then(() => new Promise<void>((resolve, reject) => {
+        dnsServer.listen(53, publicIp, (err) => {
+            if (err) reject();
+            else resolve();
+        })
+    }))
+    .then(() => {
+        console.log("Load balancer listening on ports 53 (DNS), 80 (HTTP) and 443 (HTTPS).");
+    });
