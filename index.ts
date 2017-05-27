@@ -8,13 +8,14 @@ import * as url from "url";
 import * as filesize from "filesize";
 import {SkipBytes} from "./SkipBytes";
 
-var publicIp = "192.168.0.230";
+let publicIp = "192.168.0.230";
+let interceptedDomain = "v.vrv.co";
+let interceptionTTL = 60;
 
 dnsd.createServer((req, res) => {
     const question = req.question[0];
-    console.log(question);
     if (question.type === "A") {
-        if (question.name !== "v.vrv.co") {
+        if (question.name !== interceptedDomain) {
             dns.resolve4(question.name, {ttl: true}, (err, records) => {
                 if (!err) {
                     records.forEach(record => {
@@ -25,9 +26,13 @@ dnsd.createServer((req, res) => {
                             ttl: record.ttl,
                         });
                     });
+                    console.log(`DNS: ${question.name} A ${records[0].address} ${records[0].ttl}`);
                 } else if (err.code === "ENOTFOUND") {
+                    console.log(`DNS: ${question.name} A NXDomain`);
                     res.responseCode = 3; // NXDomain
                 } else {
+                    console.error(err);
+                    console.log(`DNS: ${question.name} A ServFail`);
                     res.responseCode = 2; // ServFail
                 }
                 res.end();
@@ -37,13 +42,15 @@ dnsd.createServer((req, res) => {
                 name: question.name,
                 type: question.type,
                 data: publicIp,
-                ttl: 60,
+                ttl: interceptionTTL,
             });
+            console.log(`DNS: ${question.name} A ${publicIp} ${interceptionTTL} (intercepted)`);
             res.end();
         }
     } else {
         // shrug... this question is not implemented
         res.responseCode = 4; // NotImp
+        console.log(`DNS: ${question.name} ${question.type} NotImp`);
         res.end()
     }
 }).listen(53, publicIp);
