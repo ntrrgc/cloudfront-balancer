@@ -8,8 +8,8 @@ import * as url from "url";
 import * as filesize from "filesize";
 import {SkipBytes} from "./SkipBytes";
 
-let publicIp = "192.168.0.230";
-let interceptedDomain = "v.vrv.co";
+let publicIp = process.argv[2] || "192.168.0.230";
+let interceptedDomain = process.argv[3] || "v.vrv.co";
 let interceptionTTL = 60;
 // Used to resolve the intercepted domain and any incoming DNS questions
 dns.setServers(["208.67.222.222", "208.67.220.220"]);
