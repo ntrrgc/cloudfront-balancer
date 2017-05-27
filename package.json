@@ -9,8 +9,10 @@
   "author": "",
   "license": "GPL-3.0",
   "dependencies": {
+    "@types/filesize": "^3.2.15",
     "@types/node": "^7.0.22",
     "dnsd": "^0.9.6",
+    "filesize": "^3.5.10",
     "http-proxy": "^1.16.2",
     "ts-node": "^3.0.4",
     "typescript": "^2.3.3"

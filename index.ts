@@ -5,6 +5,8 @@ import * as https from "https";
 import * as fs from "fs";
 import {IncomingMessage, ServerResponse} from "http";
 import * as url from "url";
+import * as filesize from "filesize";
+import {SkipBytes} from "./SkipBytes";
 
 var publicIp = "192.168.0.230";
 
@@ -74,6 +76,71 @@ class ServerRanking {
 
 const serverRanking = new ServerRanking();
 
+function runProxiedSession(reqOpts: any, skipBytes: number, timeout: number, res: ServerResponse,
+                           onFinished: (success: boolean, totalBytesSent: number, timeSpent: number) => void)
+{
+    let thisRequestBytesSent = 0;
+    const startTime = process.uptime();
+
+    const proxiedReq = https.request(reqOpts, (proxiedRes) => {
+        // When the proxy response headers arrive...
+
+        // Set the client response headers if this is the first time
+        // (no bytes have been transferred yet)
+        if (!res.headersSent) {
+            res.statusCode = proxiedRes.statusCode!;
+            for (let key in proxiedRes.headers) {
+                res.setHeader(key, proxiedRes.headers[key]);
+            }
+        }
+
+        const skipper = new SkipBytes(skipBytes);
+        let finished = false;
+
+        const dataStreamForClient: NodeJS.ReadableStream = proxiedRes.pipe(skipper);
+        dataStreamForClient
+            .on("readable", () => {
+                const chunk = dataStreamForClient.read();
+                if (chunk != null) {
+                    res.write(chunk);
+                    thisRequestBytesSent += chunk.length;
+                }
+            })
+            .on("end", () => {
+                finished = true;
+                res.end();
+                onFinished(true, skipBytes + thisRequestBytesSent, process.uptime() - startTime);
+            })
+            .on("error", () => {
+                finished = true;
+                onFinished(false, skipBytes + thisRequestBytesSent, process.uptime() - startTime);
+            });
+
+        setTimeout(() => {
+            if (!finished) {
+                finished = true;
+
+                // Stop processing data and abort the request
+                proxiedRes.unpipe(skipper);
+                dataStreamForClient.removeAllListeners();
+                proxiedReq.abort();
+
+                onFinished(false, skipBytes + thisRequestBytesSent, process.uptime() - startTime);
+            }
+        }, timeout);
+    });
+
+    proxiedReq.on("error", (error) => {
+        console.log(error);
+        res.statusCode = 502;
+        res.setHeader("X-Is-CloudFront-Proxy-Error", "true");
+        res.end(`Error proxying request: ${error}`);
+    });
+
+    // Send the request
+    proxiedReq.end();
+}
+
 function proxyRequest(req: IncomingMessage, res: ServerResponse) {
     const parsedUrl = url.parse(req.url!);
     if (!req.headers["host"]) {
@@ -82,32 +149,39 @@ function proxyRequest(req: IncomingMessage, res: ServerResponse) {
         return;
     }
 
-    const chosenServer = serverRanking.chooseServer();
+    let skipBytes = 0;
+    let chosenServer: string = serverRanking.chooseServer();
+    function tryNextServer() {
+        const reqOptions = <any>{
+            port: 443,
+            method: req.method,
+            path: parsedUrl.path,
+            headers: req.headers,
+            host: chosenServer,
+            servername: req.headers["host"], // TLS Server Name Indication (SNI)
+        };
 
+        runProxiedSession(reqOptions, skipBytes, 5000, res, (success, totalBytesSent, timeSpent) => {
+            if (!success) {
+                // Retry with next server
+                serverRanking.reportBadServer(chosenServer);
+                const newChosenServer = serverRanking.chooseServer();
 
-    const reqOptions = <any>{
-        port: 443,
-        method: req.method,
-        path: parsedUrl.path,
-        headers: req.headers,
-        host: chosenServer,
-        servername: req.headers["host"], // TLS Server Name Indication (SNI)
-    };
-    console.log(reqOptions);
+                console.log(`${chosenServer}: Server seems slow. Retrying next with ${newChosenServer} after ${filesize(totalBytesSent)}`);
+                chosenServer = newChosenServer;
+                skipBytes = totalBytesSent;
+                tryNextServer();
+            } else {
+                // Print stats
+                const bytesPerSecond = totalBytesSent / timeSpent;
+                console.log(`${chosenServer}: Downloaded ${filesize(totalBytesSent)} in ${timeSpent.toFixed(2)} seconds (${filesize(bytesPerSecond)}/s)`)
+            }
+        })
+    }
 
-    const proxiedReq = https.request(reqOptions, (proxiedRes) => {
-        for (let key in proxiedRes.headers) {
-            res.setHeader(key, proxiedRes.headers[key]);
-        }
-        proxiedRes.pipe(res);
-    });
-    proxiedReq.end();
-    proxiedReq.on("error", (error) => {
-        console.log(error);
-        res.statusCode = 502;
-        res.setHeader("X-Is-CloudFront-Proxy-Error", "true");
-        res.end(`Error proxying request: ${error}`);
-    });
+    // Loop through the servers until the request response is streamed timely
+    // with any of them.
+    tryNextServer();
 }
 
 http.createServer(proxyRequest).listen(80, publicIp);
