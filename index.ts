@@ -201,8 +201,8 @@ serverRanking.initializeServers()
     }))
     .then(() => new Promise<void>((resolve, reject) => {
         https.createServer({
-            key: fs.readFileSync("ca/archive/v.vrv.co/server.key"),
-            cert: fs.readFileSync("ca/archive/v.vrv.co/server.crt"),
+            key: fs.readFileSync(`ca/archive/${interceptedDomain}/server.key`),
+            cert: fs.readFileSync(`ca/archive/${interceptedDomain}/server.crt`),
         }, proxyRequest).listen(443, publicIp, (err) => {
             if (err) reject();
             else resolve();
