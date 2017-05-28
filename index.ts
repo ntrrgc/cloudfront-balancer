@@ -106,7 +106,7 @@ function runProxiedSession(reqOpts: any, skipBytes: number, timeout: number, res
 
         let finished = false;
 
-        const dataStreamForClient: NodeJS.ReadableStream = proxiedRes.pipe(new SkipBytes(skipBytes));
+        const dataStreamForClient = proxiedRes.pipe(new SkipBytes(skipBytes));
         dataStreamForClient
             .on("readable", () => {
                 const chunk = dataStreamForClient.read();
