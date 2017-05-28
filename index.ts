@@ -56,6 +56,9 @@ const dnsServer = dnsd.createServer((req, res) => {
         res.end()
     }
 });
+dnsServer.on("error", (error) => {
+    console.error(error);
+});
 
 class ServerRanking {
     private servers: string[];
