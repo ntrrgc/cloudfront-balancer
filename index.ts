@@ -104,10 +104,9 @@ function runProxiedSession(reqOpts: any, skipBytes: number, timeout: number, res
             }
         }
 
-        const skipper = new SkipBytes(skipBytes);
         let finished = false;
 
-        const dataStreamForClient: NodeJS.ReadableStream = proxiedRes.pipe(skipper);
+        const dataStreamForClient: NodeJS.ReadableStream = proxiedRes.pipe(new SkipBytes(skipBytes));
         dataStreamForClient
             .on("readable", () => {
                 const chunk = dataStreamForClient.read();
@@ -135,7 +134,7 @@ function runProxiedSession(reqOpts: any, skipBytes: number, timeout: number, res
                 finished = true;
 
                 // Stop processing data and abort the request
-                proxiedRes.unpipe(skipper);
+                proxiedRes.unpipe(dataStreamForClient);
                 dataStreamForClient.removeAllListeners();
                 proxiedReq.abort();
 
