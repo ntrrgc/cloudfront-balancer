@@ -21,7 +21,7 @@ This load balancer does not inspect or modify the contents of the HTTP requests 
 Requirements:
 
  * A small Linux server with static IP, connected to the LAN (preferably over Ethernet) with free HTTP, HTTPS and DNS ports. A Raspberry Pi works fine. A fairly recent version of node.js must be installed (v6 or v7 should be fine).
- * A self-signed certification authority (CA).
+ * A self-signed certification authority (CA) (see below).
  * Ability to add install the CA in the devices where the balancer is desired to be used.
  * Ability to either:
    * Modify `/etc/hosts` in the devices where the balancer is desired to be used.
