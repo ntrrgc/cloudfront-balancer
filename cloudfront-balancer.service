@@ -1,0 +1,11 @@
+[Unit]
+Description=CloudFront balancer
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/npm run run 192.168.0.230
+WorkingDirectory=/home/pi/cloudfront-balancer
+
+[Install]
+WantedBy=multi-user.target
+Pre=network-online.target
