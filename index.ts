@@ -111,19 +111,23 @@ function runProxiedSession(reqOpts: any, skipBytes: number, timeout: number, res
         dataStreamForClient
             .on("readable", () => {
                 const chunk = dataStreamForClient.read();
-                if (chunk != null) {
+                if (!finished && chunk != null) {
                     res.write(chunk);
                     thisRequestBytesSent += chunk.length;
                 }
             })
             .on("end", () => {
-                finished = true;
-                res.end();
-                onFinished(true, skipBytes + thisRequestBytesSent, process.uptime() - startTime);
+                if (!finished) {
+                    finished = true;
+                    res.end();
+                    onFinished(true, skipBytes + thisRequestBytesSent, process.uptime() - startTime);
+                }
             })
             .on("error", () => {
-                finished = true;
-                onFinished(false, skipBytes + thisRequestBytesSent, process.uptime() - startTime);
+                if (!finished) {
+                    finished = true;
+                    onFinished(false, skipBytes + thisRequestBytesSent, process.uptime() - startTime);
+                }
             });
 
         setTimeout(() => {
