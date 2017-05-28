@@ -171,7 +171,7 @@ function proxyRequest(req: IncomingMessage, res: ServerResponse) {
             servername: req.headers["host"], // TLS Server Name Indication (SNI)
         };
 
-        runProxiedSession(reqOptions, skipBytes, 5000, res, (success, totalBytesSent, timeSpent) => {
+        runProxiedSession(reqOptions, skipBytes, 8000, res, (success, totalBytesSent, timeSpent) => {
             if (!success) {
                 // Retry with next server
                 serverRanking.reportBadServer(chosenServer);
