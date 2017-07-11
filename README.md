@@ -40,7 +40,7 @@ Installation steps:
 3. Create a certificate for the domain you need to intercept. In the case of CrunchyRoll, we want to intercept `v.vrv.co`.  
 
     ```bash
-    ./CA-baka --workdir ca --newserver v.vrv.co email\@example.com
+    ./CA-baka --workdir ca --newserver v.vrv.co email\@example.com --altnames DNS:v.vrv.co
     ```
 
 4. Install the root CA certificate, found in `./ca/ca.crt` in your devices. In order to install it in iOS you must serve the file with any HTTP server. Navigate to the URL of the certificate and you'll be prompted to install it as an authority.
